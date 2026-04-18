@@ -1,77 +1,91 @@
-let rulerElement = null;
+let isFocusLocked = false;
+let originalHTML = "";
 
-chrome.storage.sync.get(['readability', 'ruler', 'spacing'], (data) => {
-  if (data.readability) applyReadability(true);
-  if (data.ruler) toggleRuler(true);
-  if (data.spacing) updateSpacing(data.spacing);
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    switch(msg.type) {
+        case 'SET_THEME': applyTheme(msg.value); break;
+        case 'TOGGLE_FOCUS': toggleFocusLock(msg.value); break;
+        case 'TOGGLE_SYLLABLES': toggleSyllables(msg.value); break;
+        case 'START_KARAOKE': startKaraoke(); break;
+        case 'GET_TEXT': sendResponse({text: document.body.innerText.substring(0, 2000)}); break;
+        case 'SHOW_SUMMARY': createSummaryCard(msg.data); break;
+        case 'REPLACE_TEXT': replaceMainContent(msg.text); break;
+    }
 });
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  switch (request.type) {
-    case 'TOGGLE_READABILITY': applyReadability(request.value); break;
-    case 'TOGGLE_RULER': toggleRuler(request.value); break;
-    case 'UPDATE_SPACING': updateSpacing(request.value); break;
-    case 'CLEAN_PAGE': cleanReadingMode(); break;
-    case 'READ_TEXT': readText(); break;
-    case 'GET_SELECTION': sendResponse({ text: window.getSelection().toString() }); break;
-    case 'SHOW_AI_PANEL': showAIPanel(request.text); break;
-  }
-});
+function applyTheme(theme) {
+    document.documentElement.className = `dl-theme-${theme}`;
+}
 
-function applyReadability(active) {
-  if (active) {
-    document.body.classList.add('nr-reading-mode');
-    const style = document.createElement('style');
-    style.id = 'nr-font-styles';
-    style.innerHTML = `
-      @import url('https://fonts.googleapis.com/css2?family=Andika&display=swap');
-      .nr-reading-mode { font-family: 'Andika', sans-serif !important; background-color: #fdf6e3 !important; }
-      .nr-reading-mode p { letter-spacing: 0.05em !important; word-spacing: 0.1em !important; }
+function toggleFocusLock(active) {
+    let overlay = document.getElementById('dl-focus-overlay');
+    if (active) {
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'dl-focus-overlay';
+            document.body.appendChild(overlay);
+        }
+        window.onmousemove = (e) => {
+            overlay.style.background = `radial-gradient(circle at ${e.clientX}px ${e.clientY}px, transparent 100px, rgba(0,0,0,0.7) 150px)`;
+        };
+    } else {
+        if (overlay) overlay.remove();
+        window.onmousemove = null;
+    }
+}
+
+function toggleSyllables(active) {
+    if (active) {
+        originalHTML = document.body.innerHTML;
+        // Simple Syllable Regex for Demo
+        const textNodes = document.createNodeIterator(document.body, NodeFilter.SHOW_TEXT);
+        let node;
+        while (node = textNodes.nextNode()) {
+            if (node.parentElement.tagName !== 'SCRIPT' && node.textContent.trim().length > 3) {
+                node.textContent = node.textContent.replace(/([a-z]{2,})(?=[a-z]{2,})/gi, "$1·");
+            }
+        }
+    } else if (originalHTML) {
+        document.body.innerHTML = originalHTML;
+    }
+}
+
+function startKaraoke() {
+    const selection = window.getSelection().toString() || document.body.innerText.substring(0, 500);
+    const utter = new SpeechSynthesisUtterance(selection);
+    utter.rate = 0.85;
+
+    utter.onboundary = (event) => {
+        if (event.name === 'word') {
+            // In a real demo, we'd wrap words in spans. 
+            // For hackathon: show progress in a small toast.
+            showToast(`Reading: ${Math.round((event.charIndex / selection.length) * 100)}%`);
+        }
+    };
+    window.speechSynthesis.speak(utter);
+}
+
+function createSummaryCard(data) {
+    let card = document.getElementById('dl-summary-card');
+    if (!card) {
+        card = document.createElement('div');
+        card.id = 'dl-summary-card';
+        document.body.appendChild(card);
+    }
+    card.innerHTML = `
+        <h3>Smart Insights</h3>
+        <ul>${data.bullets.map(b => `<li>${b}</li>`).join('')}</ul>
+        <div class="takeaway"><strong>Takeaway:</strong> ${data.takeaway}</div>
+        <button onclick="this.parentElement.remove()">Close</button>
     `;
-    document.head.appendChild(style);
-  } else {
-    document.body.classList.remove('nr-reading-mode');
-    const style = document.getElementById('nr-font-styles');
-    if (style) style.remove();
-  }
 }
 
-function toggleRuler(active) {
-  if (active) {
-    rulerElement = document.createElement('div');
-    rulerElement.id = 'nr-focus-ruler';
-    document.body.appendChild(rulerElement);
-    window.onmousemove = (e) => { rulerElement.style.top = (e.clientY - 20) + 'px'; };
-  } else {
-    if (rulerElement) rulerElement.remove();
-    window.onmousemove = null;
-  }
-}
-
-function updateSpacing(val) { document.body.style.lineHeight = val; }
-
-function cleanReadingMode() {
-  ['nav', 'header', 'footer', 'aside', '.ads'].forEach(sel => {
-    document.querySelectorAll(sel).forEach(el => el.style.display = 'none');
-  });
-}
-
-function readText() {
-  const text = window.getSelection().toString() || "No text selected.";
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.85;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
-}
-
-function showAIPanel(text) {
-  let panel = document.getElementById('nr-ai-panel');
-  if (!panel) {
-    panel = document.createElement('div');
-    panel.id = 'nr-ai-panel';
-    document.body.appendChild(panel);
-  }
-  panel.innerHTML = `<strong>AI Summary</strong><button id="close-nr">✖</button><div>${text}</div>`;
-  panel.style.display = 'block';
-  document.getElementById('close-nr').onclick = () => panel.style.display = 'none';
+function showToast(text) {
+    let toast = document.getElementById('dl-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'dl-toast';
+        document.body.appendChild(toast);
+    }
+    toast.innerText = text;
 }

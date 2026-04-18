@@ -1,13 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "NeuroRead",
-  "version": "1.0",
-  "description": "Accessibility tool for dyslexia: Readability fonts, focus ruler, TTS, and AI simplification.",
-  "permissions": [
-    "storage",
-    "activeTab",
-    "scripting"
-  ],
+  "name": "DyslexiLens Pro",
+  "version": "2.0",
+  "permissions": ["storage", "activeTab", "scripting"],
   "action": {
     "default_popup": "popup.html"
   },
