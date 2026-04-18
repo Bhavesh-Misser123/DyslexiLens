@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { width: 320px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background: #f9f9fb; color: #333; }
+    .header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+    .header h1 { font-size: 1.4rem; margin: 0; color: #2c3e50; }
+    .section { margin-bottom: 15px; }
+    .toggle-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    button { 
+      width: 100%; padding: 10px; margin-top: 5px; cursor: pointer; border: none; border-radius: 6px; 
+      background: #4a90e2; color: white; font-weight: bold; transition: background 0.2s;
+    }
+    button:hover { background: #357abd; }
+    button.secondary { background: #6c757d; }
+    .slider-label { font-size: 0.85rem; display: block; margin-top: 10px; }
+    input[type="range"] { width: 100%; }
+    .status { font-size: 0.75rem; color: #666; text-align: center; margin-top: 10px; }
+    .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; }
+    .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: #4a90e2; }
+    input:checked + .slider:before { transform: translateX(20px); }
+  </style>
+</head>
+<body>
+  <div class="header"><h1>NeuroRead</h1></div>
+  <div class="section">
+    <div class="toggle-group">
+      <span>Readability Mode</span>
+      <label class="switch"><input type="checkbox" id="toggleReadability"><span class="slider"></span></label>
+    </div>
+    <div class="toggle-group">
+      <span>Focus Ruler</span>
+      <label class="switch"><input type="checkbox" id="toggleRuler"><span class="slider"></span></label>
+    </div>
+  </div>
+  <div class="section">
+    <button id="cleanPageBtn" class="secondary">Clean Reading Mode</button>
+    <button id="readSelectedBtn">🔊 Read Selected Text</button>
+    <button id="simplifyBtn" style="background: #8e44ad;">✨ AI Simplify Selection</button>
+  </div>
+  <div class="section">
+    <span class="slider-label">Line Spacing</span>
+    <input type="range" id="lineSpacing" min="1" max="3" step="0.1" value="1.5">
+  </div>
+  <script src="ai.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
