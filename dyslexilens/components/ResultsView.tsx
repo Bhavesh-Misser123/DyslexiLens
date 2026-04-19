@@ -12,16 +12,16 @@
 
 import { useState, useCallback } from "react";
 import FocusMode from "@/components/FocusMode";
-import type { DyslexiaResult, HardWord } from "@/types/dyslexia";
+import type { DyslexiaResult, HardWord, WordAnalysis } from "@/types/dyslexia";
 
 interface ResultsViewProps {
-  result:   DyslexiaResult;
-  rawText:  string;
+  result: DyslexiaResult;
+  rawText: string;
   imageUrl: string;
-  onReset:  () => void;
+  onReset: () => void;
 }
 
-type Tab = "simplified" | "chunked" | "words" | "tips";
+type Tab = "simplified" | "chunked" | "interactive" | "words" | "tips";
 
 export default function ResultsView({
   result,
@@ -29,10 +29,11 @@ export default function ResultsView({
   imageUrl,
   onReset,
 }: ResultsViewProps) {
-  const [activeTab, setActiveTab]     = useState<Tab>("simplified");
-  const [focusOpen, setFocusOpen]     = useState(false);
-  const [rawVisible, setRawVisible]   = useState(false);
-  const [isSpeaking, setIsSpeaking]   = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("simplified");
+  const [focusOpen, setFocusOpen] = useState(false);
+  const [rawVisible, setRawVisible] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [selectedWords, setSelectedWords] = useState<WordAnalysis[]>([]);
 
   // ── Read full simplified text aloud
   const handleReadAloud = useCallback(() => {
@@ -48,7 +49,7 @@ export default function ResultsView({
     }
 
     const utt = new SpeechSynthesisUtterance(result.simplified_text);
-    utt.rate  = 0.85;
+    utt.rate = 0.85;
     utt.pitch = 1.0;
     utt.onend = () => setIsSpeaking(false);
     utt.onerror = () => setIsSpeaking(false);
@@ -56,11 +57,77 @@ export default function ResultsView({
     window.speechSynthesis.speak(utt);
   }, [isSpeaking, result.simplified_text]);
 
+  const handleWordSelect = useCallback(
+    (word: string) => {
+      setSelectedWords((prev) => {
+        const exists = prev.some(
+          (w) => w.word.toLowerCase() === word.toLowerCase(),
+        );
+        if (exists) {
+          // Remove if already selected
+          return prev.filter(
+            (w) => w.word.toLowerCase() !== word.toLowerCase(),
+          );
+        } else {
+          // Add if not selected - find existing analysis or create basic one
+          let analysis = result.word_analysis?.find(
+            (wa) => wa.word.toLowerCase() === word.toLowerCase(),
+          );
+
+          if (!analysis) {
+            // Create basic analysis on the fly
+            const splitSyllables = (w: string): string[] => {
+              const vowels = "aeiouy";
+              const syllables: string[] = [];
+              let currentSyllable = "";
+
+              for (let i = 0; i < w.length; i++) {
+                currentSyllable += w[i];
+                if (
+                  vowels.includes(w[i].toLowerCase()) &&
+                  (i === w.length - 1 ||
+                    !vowels.includes(w[i + 1]?.toLowerCase()))
+                ) {
+                  syllables.push(currentSyllable);
+                  currentSyllable = "";
+                }
+              }
+              if (currentSyllable) syllables.push(currentSyllable);
+              return syllables.length > 0 ? syllables : [w];
+            };
+
+            const getPronunciation = (w: string): string => {
+              return w
+                .replace(/ph/g, "f")
+                .replace(/th/g, "th")
+                .replace(/ch/g, "ch")
+                .replace(/sh/g, "sh")
+                .replace(/wh/g, "wh")
+                .replace(/qu/g, "kw")
+                .replace(/ck/g, "k")
+                .replace(/ng/g, "ng");
+            };
+
+            analysis = {
+              word: word.toLowerCase(),
+              syllables: splitSyllables(word.toLowerCase()),
+              pronunciation: getPronunciation(word.toLowerCase()),
+            };
+          }
+
+          return [...prev, analysis];
+        }
+      });
+    },
+    [result.word_analysis],
+  );
+
   const TABS: { id: Tab; label: string; emoji: string }[] = [
-    { id: "simplified", label: "Simple",  emoji: "📖" },
-    { id: "chunked",    label: "Chunks",  emoji: "🧩" },
-    { id: "words",      label: "Words",   emoji: "💡" },
-    { id: "tips",       label: "Tips",    emoji: "✅" },
+    { id: "simplified", label: "Simple", emoji: "📖" },
+    { id: "chunked", label: "Chunks", emoji: "🧩" },
+    { id: "interactive", label: "Select", emoji: "👆" },
+    { id: "words", label: "Words", emoji: "💡" },
+    { id: "tips", label: "Tips", emoji: "✅" },
   ];
 
   return (
@@ -131,9 +198,10 @@ export default function ResultsView({
             className={`
               flex flex-col items-center gap-1 py-3 rounded-xl text-xs font-display font-medium
               transition-all duration-150
-              ${activeTab === tab.id
-                ? "bg-focus text-white shadow-sm"
-                : "bg-white border border-cream-200 text-ink-500 hover:bg-cream-100"
+              ${
+                activeTab === tab.id
+                  ? "bg-focus text-white shadow-sm"
+                  : "bg-white border border-cream-200 text-ink-500 hover:bg-cream-100"
               }
             `}
           >
@@ -168,10 +236,7 @@ export default function ResultsView({
           </p>
           <ol className="space-y-3" aria-label="Text chunks">
             {result.chunked_lines.map((line, i) => (
-              <li
-                key={i}
-                className="flex gap-3 items-start"
-              >
+              <li key={i} className="flex gap-3 items-start">
                 <span className="text-focus font-display font-bold text-sm mt-1 min-w-[1.5rem]">
                   {i + 1}.
                 </span>
@@ -184,17 +249,49 @@ export default function ResultsView({
         </div>
       )}
 
-      {/* HARD WORDS */}
+      {/* INTERACTIVE TEXT SELECTION */}
+      {activeTab === "interactive" && (
+        <div className="card space-y-3">
+          <h3 className="font-display font-semibold text-ink-700 text-sm uppercase tracking-wider">
+            Select Words for Help
+          </h3>
+          <p className="text-ink-400 text-xs">
+            Click on words you want help with. Selected words will appear in the
+            Words tab.
+          </p>
+          <div className="text-ink-900 text-lg reading-text leading-relaxed">
+            <InteractiveText
+              text={result.simplified_text}
+              wordAnalysis={result.word_analysis}
+              selectedWords={selectedWords}
+              onWordSelect={handleWordSelect}
+            />
+          </div>
+          {selectedWords.length > 0 && (
+            <div className="mt-4 p-3 bg-leaf-light rounded-xl">
+              <p className="text-leaf text-sm font-medium">
+                {selectedWords.length} word
+                {selectedWords.length !== 1 ? "s" : ""} selected
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SELECTED WORDS */}
       {activeTab === "words" && (
         <div className="space-y-3">
-          {result.hard_words.length === 0 ? (
+          {selectedWords.length === 0 ? (
             <div className="card text-center py-8">
-              <span className="text-3xl block mb-2">🎉</span>
-              <p className="text-ink-500">No particularly difficult words found!</p>
+              <span className="text-3xl block mb-2">👆</span>
+              <p className="text-ink-500">No words selected yet!</p>
+              <p className="text-ink-400 text-sm mt-1">
+                Go to the Select tab to click on words you need help with.
+              </p>
             </div>
           ) : (
-            result.hard_words.map((hw, i) => (
-              <HardWordCard key={i} word={hw} />
+            selectedWords.map((word, i) => (
+              <SelectedWordCard key={i} word={word} />
             ))
           )}
         </div>
@@ -233,7 +330,9 @@ export default function ResultsView({
           <span className="font-display font-medium text-ink-600 text-sm">
             Original extracted text
           </span>
-          <span className="text-ink-400 text-sm">{rawVisible ? "▲ Hide" : "▼ Show"}</span>
+          <span className="text-ink-400 text-sm">
+            {rawVisible ? "▲ Hide" : "▼ Show"}
+          </span>
         </button>
         {rawVisible && (
           <div
@@ -259,8 +358,145 @@ export default function ResultsView({
   );
 }
 
-// ── Hard word expandable card ──────────────────────────────────
-function HardWordCard({ word }: { word: HardWord }) {
+// ── Interactive text with clickable words ──────────────────────────────────
+function InteractiveText({
+  text,
+  wordAnalysis,
+  selectedWords,
+  onWordSelect,
+}: {
+  text: string;
+  wordAnalysis?: WordAnalysis[];
+  selectedWords: WordAnalysis[];
+  onWordSelect: (word: string) => void;
+}) {
+  // Create a set of selected word names for quick lookup
+  const selectedWordSet = new Set(
+    selectedWords.map((w) => w.word.toLowerCase()),
+  );
+
+  // Simple syllable splitter (basic implementation)
+  const splitSyllables = (word: string): string[] => {
+    // This is a very basic syllable splitter - in a real app you'd use a proper library
+    const vowels = "aeiouy";
+    const syllables: string[] = [];
+    let currentSyllable = "";
+
+    for (let i = 0; i < word.length; i++) {
+      currentSyllable += word[i];
+      if (
+        vowels.includes(word[i].toLowerCase()) &&
+        (i === word.length - 1 || !vowels.includes(word[i + 1]?.toLowerCase()))
+      ) {
+        syllables.push(currentSyllable);
+        currentSyllable = "";
+      }
+    }
+    if (currentSyllable) syllables.push(currentSyllable);
+    return syllables.length > 0 ? syllables : [word];
+  };
+
+  // Basic pronunciation guide
+  const getPronunciation = (word: string): string => {
+    // Very basic - just replace common letter combinations
+    return word
+      .replace(/ph/g, "f")
+      .replace(/th/g, "th")
+      .replace(/ch/g, "ch")
+      .replace(/sh/g, "sh")
+      .replace(/wh/g, "wh")
+      .replace(/qu/g, "kw")
+      .replace(/ck/g, "k")
+      .replace(/ng/g, "ng");
+  };
+
+  // Split text into words and punctuation
+  const parts = text.split(/(\s+|[.,!?;:])/);
+
+  return (
+    <div className="leading-relaxed">
+      {parts.map((part, i) => {
+        // Check if this part is a word (4+ letters, not common word)
+        const cleanWord = part.replace(/[.,!?;:]$/, "").toLowerCase();
+        const isSignificantWord =
+          cleanWord.length >= 4 &&
+          ![
+            "that",
+            "with",
+            "have",
+            "this",
+            "will",
+            "your",
+            "from",
+            "they",
+            "know",
+            "want",
+            "been",
+            "good",
+            "much",
+            "some",
+            "time",
+            "very",
+            "when",
+            "come",
+            "here",
+            "just",
+            "like",
+            "long",
+            "make",
+            "many",
+            "over",
+            "such",
+            "take",
+            "than",
+            "them",
+            "well",
+            "were",
+          ].includes(cleanWord);
+
+        if (isSignificantWord && part.match(/^\w+$/)) {
+          // This is a clickable word
+          const isSelected = selectedWordSet.has(cleanWord);
+
+          // Find existing analysis or create basic one
+          let analysis = wordAnalysis?.find(
+            (wa) => wa.word.toLowerCase() === cleanWord,
+          );
+
+          if (!analysis) {
+            // Create basic analysis on the fly
+            analysis = {
+              word: cleanWord,
+              syllables: splitSyllables(cleanWord),
+              pronunciation: getPronunciation(cleanWord),
+            };
+          }
+
+          return (
+            <button
+              key={i}
+              onClick={() => onWordSelect(analysis!.word)}
+              className={`inline-block px-1 py-0.5 mx-0.5 rounded transition-all duration-150 ${
+                isSelected
+                  ? "bg-focus text-white font-medium"
+                  : "hover:bg-cream-200 text-ink-900"
+              }`}
+              title={`Click to ${isSelected ? "deselect" : "select"} this word`}
+            >
+              {part}
+            </button>
+          );
+        } else {
+          // Regular text/punctuation
+          return <span key={i}>{part}</span>;
+        }
+      })}
+    </div>
+  );
+}
+
+// ── Selected word expandable card ──────────────────────────────────
+function SelectedWordCard({ word }: { word: WordAnalysis }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -295,19 +531,6 @@ function HardWordCard({ word }: { word: HardWord }) {
             <span className="font-display text-ink-700 text-sm bg-sky-light px-2 py-0.5 rounded-md">
               {word.pronunciation}
             </span>
-          </div>
-
-          {/* Meaning */}
-          <p className="text-ink-900 reading-text">
-            <span className="font-medium text-ink-600">Means: </span>
-            {word.simple_meaning}
-          </p>
-
-          {/* Example */}
-          <div className="bg-cream-100 rounded-xl p-3">
-            <p className="text-ink-500 text-sm italic reading-text">
-              "{word.example_sentence}"
-            </p>
           </div>
         </div>
       )}

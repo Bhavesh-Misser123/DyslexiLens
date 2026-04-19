@@ -5,7 +5,7 @@ function getClient() {
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
     throw new Error(
-      "API key is not set. Add your K2 API key to .env.local as GEMINI_API_KEY"
+      "API key is not set. Add your K2 API key to .env.local as GEMINI_API_KEY",
     );
   }
   return new OpenAI({
@@ -54,10 +54,10 @@ export async function processTextWithGemini(rawText: string): Promise<string> {
   const client = getClient();
 
   const response = await client.chat.completions.create({
-    model: "MBZUAI-IFM/K2-Think-v2",  // ← replace with the exact model name K2 uses
+    model: "MBZUAI-IFM/K2-Think-v2", // ← replace with the exact model name K2 uses
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user",   content: `Here is the text to transform:\n\n${rawText}` },
+      { role: "user", content: `Here is the text to transform:\n\n${rawText}` },
     ],
     temperature: 0.3,
   });
