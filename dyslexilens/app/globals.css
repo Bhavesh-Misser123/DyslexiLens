@@ -1,0 +1,72 @@
+/* app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dyslexia-friendly reading defaults */
+    --reading-spacing: 0.08em;
+    --reading-line-height: 1.9;
+  }
+
+  /* Smooth scroll for focus mode navigation */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Override default tap highlight on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Focus ring that's visible but not distracting */
+  *:focus-visible {
+    outline: 3px solid #F4A723;
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  /* Applied to all reading content for dyslexia-friendly spacing */
+  .reading-text {
+    letter-spacing: var(--reading-spacing);
+    line-height: var(--reading-line-height);
+    word-spacing: 0.05em;
+  }
+
+  /* Chunked line highlight animation */
+  .chunk-active {
+    background-color: #FDE68A;
+    border-radius: 6px;
+    padding: 4px 8px;
+    transition: background-color 0.2s ease;
+  }
+
+  /* Card style used throughout */
+  .card {
+    @apply bg-white rounded-2xl shadow-sm border border-cream-200 p-5;
+  }
+
+  /* Primary action button */
+  .btn-primary {
+    @apply bg-focus text-white font-display font-semibold rounded-xl px-6 py-3
+           active:scale-95 transition-all duration-150 disabled:opacity-40
+           disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-dark;
+  }
+
+  /* Ghost/secondary button */
+  .btn-ghost {
+    @apply bg-cream-100 text-ink-700 font-display font-medium rounded-xl px-5 py-3
+           border border-cream-200 active:scale-95 transition-all duration-150
+           hover:bg-cream-200 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+}
+
+@layer utilities {
+  /* Prevent body scroll when a modal is open */
+  .no-scroll {
+    overflow: hidden;
+  }
+}
